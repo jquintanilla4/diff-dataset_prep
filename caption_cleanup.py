@@ -5,7 +5,7 @@ from ollama import Client
 # function to clean up phrases from the caption. Because LLMs/VLMs are not perfect
 def process_caption(caption):
     client = Client()
-    prompt = f"Remove any descriptions of art mediums, digital tools, or creation processes from the following caption. Remove any quotation marks. Return only the cleaned caption: {caption}"
+    prompt = f"Remove any descriptions of art mediums, such as illustration; art style, such as watercolor; digital tools, or creation processes from the following caption. Please also remove any quotation marks. Return only the cleaned caption: {caption}"
     
     response = client.chat(model='llama3.1:8b-instruct-fp16', messages=[
         {

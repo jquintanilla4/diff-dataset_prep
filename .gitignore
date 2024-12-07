@@ -164,3 +164,14 @@ cython_debug/
 # local files
 dataset/*
 flux_configs/*
+
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Project specific files
+caption_cleanup_prompt.md
