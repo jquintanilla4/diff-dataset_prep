@@ -4,9 +4,11 @@ import random
 import base64
 from dotenv import load_dotenv
 import PIL.Image
+from PIL import Image
 import io
 import google.generativeai as genai
 import os.path
+from google.api_core.exceptions import ResourceExhausted, DeadlineExceeded
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,23 +21,36 @@ image_path_2 = "/home/jquintanilla/Diffusion/image_datasets/WSBBC_dataset/small_
 sample_file_1 = PIL.Image.open(image_path_1)
 new_image = PIL.Image.open(image_path_2)
 
-# Function to convert PIL image to base64
-def pil_to_base64(image):
+
+# Function to resize image while maintaining aspect ratio
+def resize_image(image, max_dimension=512):
+    """Resizes an image, maintaining aspect ratio, so the largest dimension is no more than max_dimension."""
+    width, height = image.size
+
+    if max(width, height) <= max_dimension:
+        return image  # No need to resize
+
+    if width > height:
+        new_width = max_dimension
+        new_height = int(height * (max_dimension / width))
+    else:
+        new_height = max_dimension
+        new_width = int(width * (max_dimension / height))
+
+    resized_image = image.resize((new_width, new_height), Image.LANCZOS)
+    return resized_image
+
+# Function to convert PIL image to base64 encoded JPEG
+def pil_to_base64_jpeg(image, quality=85):
+    """Converts a PIL image to a base64 encoded JPEG string."""
     buffered = io.BytesIO()
-    image.save(buffered, format="PNG")
+    image.save(buffered, format="JPEG", quality=quality)
     img_str = base64.b64encode(buffered.getvalue()).decode()
     return img_str
 
-# Choose a Gemini model.
-# generation_config = { # Generation config for Gemini Exp 1206
-#   "temperature": 1,
-#   "top_p": 0.95,
-#   "top_k": 64,
-#   "max_output_tokens": 8192,
-#   "response_mime_type": "text/plain",
-# }
 
-generation_config = { # Generation config for Gemini 1.5 Flash
+# Choose a Gemini model.
+generation_config = {
   "temperature": 1,
   "top_p": 0.95,
   "top_k": 40,
@@ -44,18 +59,21 @@ generation_config = { # Generation config for Gemini 1.5 Flash
 }
 
 model = genai.GenerativeModel(
-#   model_name="gemini-exp-1206",
   model_name="gemini-1.5-flash",
   generation_config=generation_config,
   system_instruction="You're an illustrator, photographer, painter, and cinematographer. An expert in describing images and all of its details.",
 )
 
-prompt = "Please describe what's in this image, and if there's a character, also describe its expression. After that, please create a new paragraph title \"Prompt\", in which you will reformat the image description and any additional details you mentioned  into a verbose prompt for the generative image model Flux. This prompt will be used for training a LoRA."
+prompt = "Please describe what's in this image, and if there's a character, also describe its expression. After that, please create a new paragraph title \"Prompt\", in which you will reformat the image description and any additional details you mentioned into a verbose prompt for the generative image model Flux. This prompt will be used for training a LoRA."
+
+# Resize and convert the sample image for the one-shot example
+resized_sample_file_1 = resize_image(sample_file_1, max_dimension=512)
+sample_file_1_jpeg = pil_to_base64_jpeg(resized_sample_file_1, quality=85)
 
 # Create the one-shot example message with just the response
 one_shot_example = [{
     "role": "user",
-    "parts": [prompt, pil_to_base64(sample_file_1)]
+    "parts": [prompt, sample_file_1_jpeg]  # Use the base64 JPEG string for the example
 }, {
     "role": "model",
     "parts": [
@@ -63,47 +81,87 @@ one_shot_example = [{
     ]
 }]
 
+# Resize and convert the new image
+resized_new_image = resize_image(new_image, max_dimension=512)
+new_image_jpeg = pil_to_base64_jpeg(resized_new_image, quality=85)
+
 # Create a message for the new image
 new_image_message = {
     "role": "user",
-    "parts": [prompt, pil_to_base64(new_image)]
+    "parts": [prompt, new_image_jpeg]  # Use the base64 JPEG string
 }
 
 # Add timeout to request options
-request_options = { "timeout": 60.0 }  # Reduced timeout to 60 seconds
+request_options = { "timeout": 120.0 }  # Increased timeout
 
 # Generate content with timeout and exponential backoff
 max_retries = 5
 retry_count = 0
-base_delay = 5  # Increased base delay to 5 seconds
+base_delay = 10
+delay_multiplier = 2.5
 
 while retry_count < max_retries:
     try:
         messages = one_shot_example + [new_image_message]
+        start_time = time.time()
         response = model.generate_content(
             messages,
             request_options=request_options
         )
-        
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"API call took {duration:.2f} seconds")
+
         # Get the base filename without extension
-        base_filename = os.path.splitext(image_path_2)[0]
-        output_path = f"{base_filename}.txt"
-        
+        base_filename = os.path.splitext(os.path.basename(image_path_2))[0]
+        output_path = os.path.join(os.path.dirname(image_path_2), f"{base_filename}.txt")
+
         # Write the response to a text file
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(response.text)
-        
+
         print(f"Response saved to: {output_path}")
         print("New image response:")
         print(response.text)
         break
-        
-    except Exception as e:
+
+    except ResourceExhausted as e:
+        print(f"Attempt {retry_count + 1} failed due to rate limiting. Error: {e}")
+
+        # Attempt to access response headers (this part might not work reliably)
+        try:
+            if e.response:
+                print("Response Headers:")
+                for name, value in e.response.headers.items():  # type: ignore
+                    print(f"  {name}: {value}")
+                if "retry-after" in e.response.headers:  # type: ignore
+                    retry_after = int(e.response.headers["retry-after"])  # type: ignore
+                    print(f"  API suggested retry-after: {retry_after} seconds")
+                    delay = max(delay, retry_after)  # Use API's suggestion if available
+        except AttributeError:
+            print("Could not access response headers.")
+
         retry_count += 1
         if retry_count == max_retries:
-            print(f"Failed after {max_retries} attempts. Error: {str(e)}")
+            print(f"Failed after {max_retries} attempts.")
             raise
 
-        delay = base_delay * (2 ** retry_count) + random.uniform(0, base_delay)
-        print(f"Attempt {retry_count} failed. Retrying in {delay:.2f} seconds... Error: {str(e)}")
+        delay = base_delay * (delay_multiplier ** retry_count) + random.uniform(0, base_delay * retry_count)
+        print(f"Retrying in {delay:.2f} seconds...")
         time.sleep(delay)
+
+    except DeadlineExceeded as e:
+        print(f"Attempt {retry_count + 1} failed due to timeout. Error: {e}")
+        retry_count += 1
+        if retry_count == max_retries:
+            print(f"Failed after {max_retries} attempts.")
+            raise
+
+        # You might want a different backoff strategy for timeouts
+        delay = base_delay * (2 ** retry_count) + random.uniform(0, base_delay * retry_count)
+        print(f"Retrying in {delay:.2f} seconds...")
+        time.sleep(delay)
+
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        raise
