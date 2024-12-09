@@ -15,8 +15,10 @@ load_dotenv()
 
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-image_path_1 = "/home/jquintanilla/Diffusion/image_datasets/WSBBC_dataset/small_set_ch01/0020.png"
-image_path_2 = "/home/jquintanilla/Diffusion/image_datasets/WSBBC_dataset/small_set_ch01/0022.png"
+# image_path_1 = "/home/jquintanilla/Diffusion/image_datasets/WSBBC_dataset/small_set_ch01/0020.png"
+image_path_1 = "/Users/jquintanilla/Library/CloudStorage/GoogleDrive-jorgeq@remko.io/My Drive/WSBBC_PSDs/WSBBC_dataset/small_set_ch01/0020.png"
+# image_path_2 = "/home/jquintanilla/Diffusion/image_datasets/WSBBC_dataset/small_set_ch01/0022.png"
+image_path_2 = "/Users/jquintanilla/Library/CloudStorage/GoogleDrive-jorgeq@remko.io/My Drive/WSBBC_PSDs/WSBBC_dataset/small_set_ch01/0022.png"
 
 sample_file_1 = PIL.Image.open(image_path_1)
 new_image = PIL.Image.open(image_path_2)
@@ -50,21 +52,37 @@ def pil_to_base64_jpeg(image, quality=85):
 
 
 # Choose a Gemini model.
+# Gemini 1.5 Flash
+# generation_config = {
+#   "temperature": 1,
+#   "top_p": 0.95,
+#   "top_k": 40,
+#   "max_output_tokens": 8192,
+#   "response_mime_type": "text/plain",
+# }
+
+# model = genai.GenerativeModel(
+#   model_name="gemini-1.5-flash",
+#   generation_config=generation_config,
+#   system_instruction="You're an illustrator, photographer, painter, and cinematographer. An expert in describing images and all of its details.",
+# )
+
+# Gemini-exp-1206
 generation_config = {
   "temperature": 1,
   "top_p": 0.95,
-  "top_k": 40,
+  "top_k": 64,
   "max_output_tokens": 8192,
   "response_mime_type": "text/plain",
 }
 
 model = genai.GenerativeModel(
-  model_name="gemini-1.5-flash",
+  model_name="gemini-exp-1206",
   generation_config=generation_config,
   system_instruction="You're an illustrator, photographer, painter, and cinematographer. An expert in describing images and all of its details.",
 )
 
-prompt = "Please describe what's in this image, and if there's a character, also describe its expression. After that, please create a new paragraph title \"Prompt\", in which you will reformat the image description and any additional details you mentioned into a verbose prompt for the generative image model Flux. This prompt will be used for training a LoRA."
+prompt = "Please describe what's in this image, and if there's a character, also describe its expression. The character is not an anthropomorphic food, it's a cartoon character. After that, please create a new paragraph title \"Prompt\", in which you will reformat the image description and any additional details you mentioned into a verbose prompt for the generative image model Flux. This prompt will be used for training a LoRA."
 
 # Resize and convert the sample image for the one-shot example
 resized_sample_file_1 = resize_image(sample_file_1, max_dimension=512)
