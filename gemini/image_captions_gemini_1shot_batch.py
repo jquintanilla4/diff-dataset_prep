@@ -19,7 +19,7 @@ load_dotenv()
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
 # Define the path for an initial sample image used in the one-shot example
-image_path_1 = "/Users/jquintanilla/Library/CloudStorage/GoogleDrive-jorgeq@remko.io/My Drive/WSBBC_PSDs/WSBBC_dataset/small_set_ch01/0020.png"
+image_path_1 = "/Users/jquintanilla/Library/CloudStorage/GoogleDrive-jorgeq@remko.io/My Drive/WSBBC/WSBBC_dataset/sample_image/0020.png"
 sample_file_1 = PIL.Image.open(image_path_1)
 
 
@@ -291,7 +291,7 @@ def main():
         return
 
     # Process the folder using the module-level one_shot_example
-    process_folder(folder_path, model, prompt, batch_size=5, max_images=30)
+    process_folder(folder_path, model, prompt, batch_size=5, max_images=550)
 
     # Organize results after processing
     organize_results(folder_path)
