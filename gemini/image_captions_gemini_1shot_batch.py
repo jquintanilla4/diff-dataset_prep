@@ -42,6 +42,8 @@ def resize_image(image, max_dimension=512):
     return resized_image
 
 # Function to convert PIL image to base64 encoded JPEG
+
+
 def pil_to_base64_jpeg(image, quality=85):
     """Converts a PIL image to a base64 encoded JPEG string."""
     buffered = io.BytesIO()
@@ -55,11 +57,11 @@ sample_file_1_jpeg = pil_to_base64_jpeg(resized_sample_file_1, quality=85)
 
 # Configure the generation settings for the Gemini model
 generation_config = {
-  "temperature": 1,
-  "top_p": 0.95,
-  "top_k": 40,
-  "max_output_tokens": 8192,
-  "response_mime_type": "text/plain",
+    "temperature": 1,
+    "top_p": 0.95,
+    "top_k": 40,
+    "max_output_tokens": 8192,
+    "response_mime_type": "text/plain",
 }
 
 # Define the prompt to be used for generating descriptions and prompts
@@ -127,48 +129,67 @@ def process_folder(folder_path, model, prompt, batch_size=5, max_images=3000):
     image_files = image_files[:max_images]
 
     with tqdm(total=len(image_files), desc="Processing images") as pbar:
-        for i in range(0, len(image_files), batch_size):
+        # Calculate total number of batches for zero-padding
+        total_batches = (len(image_files) + batch_size - 1) // batch_size
+        # Dynamic padding
+        batch_number_format = f"{{:0{len(str(total_batches-1))}}}"
+
+        for batch_idx, i in enumerate(range(0, len(image_files), batch_size)):
             batch_files = image_files[i:i + batch_size]
-            batch_messages = []
-            batch_output_path = os.path.join(folder_path, f"batch_{i}_analysis.txt")
+            # Create a string of filenames for this batch
+            batch_files_str = '_'.join(f.split('.')[0] for f in batch_files)
+            # Use batch_idx instead of i for sequential numbering
+            batch_num = batch_number_format.format(batch_idx)
+            batch_output_path = os.path.join(
+                folder_path, f"batch_{batch_num}_{batch_files_str}_analysis.txt")
+            raw_response_path = os.path.join(
+                folder_path, f"raw_response_batch_{batch_num}_{batch_files_str}.json")
 
             # Skip if this batch has already been processed
             if os.path.exists(batch_output_path) and os.path.getsize(batch_output_path) > 0:
-                print(f"Skipping batch {i}: Analysis file already exists")
+                print(
+                    f"Skipping batch {batch_num}: Analysis file already exists")
                 pbar.update(len(batch_files))
                 continue
 
             try:
                 # Prepare all images in the batch
+                batch_messages = []
                 for filename in batch_files:
                     image_path = os.path.join(folder_path, filename)
                     new_image = PIL.Image.open(image_path)
-                    resized_new_image = resize_image(new_image, max_dimension=512)
-                    new_image_jpeg = pil_to_base64_jpeg(resized_new_image, quality=85)
+                    resized_new_image = resize_image(
+                        new_image, max_dimension=512)
+                    new_image_jpeg = pil_to_base64_jpeg(
+                        resized_new_image, quality=85)
 
                     batch_messages.append({
-                        'mime_type': 'image/jpeg', 
+                        'mime_type': 'image/jpeg',
                         'data': new_image_jpeg
                     })
 
                 # Add prompt after all images
-                messages = batch_messages + [f"Analyze the following {len(batch_messages)} images.\n{prompt}"]
+                messages = batch_messages + \
+                    [f"Analyze the following {len(batch_messages)} images in order.\n{prompt}"]
 
                 # Generate content for all images in batch
                 response = generate_with_retry(model, messages)
 
                 # Save the raw response
-                raw_response_path = os.path.join(folder_path, f"raw_response_batch_{i}.json")
                 with open(raw_response_path, 'w', encoding='utf-8') as f:
                     json.dump(response.to_dict(), f, indent=4)
 
-                # Save the batch analysis
+                # Save the batch analysis with file information header
                 with open(batch_output_path, 'w', encoding='utf-8') as f:
+                    f.write("Files processed in this batch (in order):\n")
+                    for idx, filename in enumerate(batch_files, 1):
+                        f.write(f"{idx}. {filename}\n")
+                    f.write("\n=== Analysis ===\n\n")
                     f.write(response.text.strip())
-                print(f"Processed batch {i} -> {batch_output_path}")
+                print(f"Processed batch {batch_num} -> {batch_output_path}")
 
             except Exception as e:
-                print(f"Error processing batch {i}: {e}")
+                print(f"Error processing batch {batch_num}: {e}")
 
             pbar.update(len(batch_files))
 
@@ -211,14 +232,42 @@ def generate_with_retry(model, messages, max_retries=5):
                 raise
 
             # Calculate delay with exponential backoff and random jitter
-            delay = base_delay * (delay_multiplier ** retry_count) + random.uniform(0, base_delay * retry_count)
+            delay = base_delay * (delay_multiplier ** retry_count) + \
+                random.uniform(0, base_delay * retry_count)
             print(f"Retrying in {delay:.2f} seconds...")
             time.sleep(delay)  # Wait for the calculated delay before retrying
 
 
+def organize_results(folder_path):
+    """
+    Moves all analysis .txt and .json files into a 'results' subdirectory.
+    
+    Args:
+        folder_path: Path to the directory containing the analysis files
+    """
+    # Create results directory if it doesn't exist
+    results_dir = os.path.join(folder_path, "results")
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Move all analysis files to results directory
+    moved_count = 0
+    for filename in os.listdir(folder_path):
+        if filename.startswith(("batch_", "raw_response_batch_")) and filename.endswith((".txt", ".json")):
+            source_path = os.path.join(folder_path, filename)
+            dest_path = os.path.join(results_dir, filename)
+            try:
+                os.rename(source_path, dest_path)
+                moved_count += 1
+            except Exception as e:
+                print(f"Error moving {filename}: {e}")
+    
+    print(f"Moved {moved_count} files to {results_dir}")
+
+
 def main():
     # Get folder path from user
-    folder_path = input("Enter the path to the folder containing images: ").strip()
+    folder_path = input(
+        "Enter the path to the folder containing images: ").strip()
 
     if not os.path.isdir(folder_path):
         print(f"Error: '{folder_path}' is not a valid directory.")
@@ -226,6 +275,9 @@ def main():
 
     # Process the folder using the module-level one_shot_example
     process_folder(folder_path, model, prompt, batch_size=5, max_images=30)
+
+    # Organize results after processing
+    organize_results(folder_path)
 
 
 if __name__ == "__main__":
