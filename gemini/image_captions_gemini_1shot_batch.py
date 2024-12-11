@@ -46,6 +46,16 @@ def resize_image(image, max_dimension=512):
 
 def pil_to_base64_jpeg(image, quality=85):
     """Converts a PIL image to a base64 encoded JPEG string."""
+    # Convert RGBA to RGB if necessary
+    if image.mode == "RGBA":
+        # Create a white background
+        background = PIL.Image.new('RGB', image.size, (255, 255, 255))
+        # Paste the image on the background using alpha channel as mask
+        background.paste(image, mask=image.split()[3])
+        image = background
+    elif image.mode == "RGB":
+        # Convert any other mode to RGB
+        image = image.convert("RGB")
     buffered = io.BytesIO()
     image.save(buffered, format="JPEG", quality=quality)
     return base64.b64encode(buffered.getvalue()).decode()
@@ -65,23 +75,29 @@ generation_config = {
 }
 
 # Define the prompt to be used for generating descriptions and prompts
-prompt = """Please describe what's in this image, and if there's a character, also describe its expression. The character is not an anthropomorphic food, it's a cartoon character. 
+prompt = """For each of the provided images, analyze it in complete isolation from the others. Number your responses to match each image (1 through N).
 
-After that, please create a new paragraph titled "Prompt", in which you will create a comprehensive prompt for the generative image model Flux. Include all of these elements:
-1. Character features and expressions (facial features, emotions, distinctive traits)
-2. Positioning and actions (pose, gestures, movement)
-3. Environmental details (surroundings, objects, terrain)
-4. Color information (palette, specific colors of elements)
-5. Spatial relationships (composition, placement of elements)
-6. Scene composition (framing, depth, perspective)
-7. Time of day lighting conditions (natural or artificial light sources)
-8. Shadow details (cast shadows, ambient occlusion)
-9. Atmospheric effects (air quality, mood, ambiance)
-10. Light interaction (how light affects different surfaces and materials)
-11. Weather implications (environmental conditions)
-12. Atmospheric perspective (depth, distance effects)
+For EACH image, provide:
 
-The prompt should be detailed but stay under 512 tokens. This prompt will be used for training a LoRA."""
+1. A "Description" section: Write a complete, standalone description of what's in this specific image, including any characters and their expressions. Describe everything as if this is the first and only time you're seeing these elements.
+
+2. A "Prompt" section: Create a comprehensive prompt for the generative image model Flux that includes:
+- Character features and expressions (facial features, emotions, distinctive traits)
+- Positioning and actions (pose, gestures, movement)
+- Environmental details (surroundings, objects, terrain)
+- Color information (palette, specific colors of elements)
+- Spatial relationships (composition, placement of elements)
+- Scene composition (framing, depth, perspective)
+- Time of day lighting conditions (natural or artificial light sources)
+- Shadow details (cast shadows, ambient occlusion)
+- Atmospheric effects (air quality, mood, ambiance)
+- Light interaction (how light affects different surfaces and materials)
+- Weather implications (environmental conditions)
+- Atmospheric perspective (depth, distance effects)
+
+Critical: Each image's description and prompt must be completely self-contained. Do not use phrases like "the same character", "again", "as seen before", or any other references to other images. Describe every element as if you're seeing it for the first time.
+
+Analyze all images in order, numbering them 1 through N. The prompt for each image should be detailed but stay under 512 tokens. These prompts will be used for training a LoRA."""
 
 # Construct the one-shot example as a string (to be included in system instruction)
 one_shot_example_str = f"""
@@ -107,10 +123,11 @@ Mid-afternoon garden scene with character in center-left position, illuminated b
 # Define the system instruction (including the one-shot example)
 system_instruction = (
     "You're an illustrator, photographer, painter, and cinematographer. "
-    "An expert in describing images and all of its details. "
-    "For each image, provide a detailed description followed by an individual prompt "
-    "that captures all the specific details of that particular image. "
-    "Each image should have its own description and prompt, clearly separated. "
+    "An expert in describing images and all of their details. "
+    "Your task is to analyze each image completely independently, "
+    "treating it as if it's the only image you've ever seen. "
+    "Never reference, compare, or relate to other images in your descriptions or prompts. "
+    "Each analysis must be completely self-contained. "
     "Here is an example of how to perform the task:\n\n"
 ) + one_shot_example_str
 
