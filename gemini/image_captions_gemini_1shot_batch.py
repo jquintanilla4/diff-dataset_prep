@@ -283,15 +283,22 @@ def organize_results(folder_path):
 
 def main():
     # Get folder path from user
-    folder_path = input(
-        "Enter the path to the folder containing images: ").strip()
+    folder_path = input("Enter the path to the folder containing images: ").strip()
 
     if not os.path.isdir(folder_path):
         print(f"Error: '{folder_path}' is not a valid directory.")
         return
+    
+    # Get max images from user
+    max_images_count = int(input("Enter the maximum number of images to process: "))
+    # Notify user if the number exceeds the limit set in the function
+    if max_images_count > 3000:
+        print(
+            "Warning: The maximum number of images to process is 3000. Setting to 3000.")
+        max_images_count = 3000
 
     # Process the folder using the module-level one_shot_example
-    process_folder(folder_path, model, prompt, batch_size=5, max_images=550)
+    process_folder(folder_path, model, prompt, batch_size=5, max_images=max_images_count)
 
     # Organize results after processing
     organize_results(folder_path)
