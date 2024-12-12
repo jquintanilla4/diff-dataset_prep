@@ -285,6 +285,9 @@ def main():
     # Get folder path from user
     folder_path = input("Enter the path to the folder containing images: ").strip()
 
+    # if the input from the user has backquotes, single quotes, or double quotes, remove them
+    folder_path = folder_path.replace('"', '').replace("'", '').replace('`', '')
+
     if not os.path.isdir(folder_path):
         print(f"Error: '{folder_path}' is not a valid directory.")
         return

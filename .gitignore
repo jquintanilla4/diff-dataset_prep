@@ -175,3 +175,4 @@ __pycache__/
 
 # Project specific files
 caption_cleanup_prompt.md
+.DS_Store
