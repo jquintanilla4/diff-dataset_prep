@@ -65,14 +65,6 @@ def pil_to_base64_jpeg(image, quality=85):
 resized_sample_file_1 = resize_image(sample_file_1, max_dimension=512)
 sample_file_1_jpeg = pil_to_base64_jpeg(resized_sample_file_1, quality=85)
 
-# Configure the generation settings for the Gemini model
-generation_config = {
-    "temperature": 1,
-    "top_p": 0.95,
-    "top_k": 40,
-    "max_output_tokens": 8192,
-    "response_mime_type": "text/plain",
-}
 
 # Define the prompt to be used for generating descriptions and prompts
 prompt = """For each of the provided images, analyze it in complete isolation from the others. Number your responses to match each image (1 through N).
@@ -131,9 +123,20 @@ system_instruction = (
     "Here is an example of how to perform the task:\n\n"
 ) + one_shot_example_str
 
+
+# Configure the generation settings for the Gemini model
+generation_config = {
+    "temperature": 1,
+    "top_p": 0.95,
+    "top_k": 40,
+    "max_output_tokens": 8192,
+    "response_mime_type": "text/plain",
+}
+
 # Initialize the Gemini model with the specified configuration and system instructions
 model = genai.GenerativeModel(
     model_name="gemini-1.5-flash",
+    # model_name="gemini-2.0-flash-exp",
     generation_config=generation_config,
     system_instruction=system_instruction,
 )
