@@ -99,6 +99,7 @@ one_shot_example_str = f"""
 {sample_file_1_jpeg}
 
 **Response:**
+**1.**
 **Description:**
 This is a cartoon illustration, depicting a character engaged in gardening on a sloped landscape under a partly cloudy sky.
 
@@ -108,7 +109,7 @@ The character appears to be working on the soil, which is a rich brown color. Th
 
 The background features a hill with a gradient of green hues, suggesting grass, and a large, bare tree with snow on some of its branches to the right. The tree's branches are spread out, and it has a textured trunk. The sky is white, with a blue, clouded hill in the distance. The overall color palette is warm, with the use of yellows, browns, and greens dominating the scene.
 
-**Individual Prompt:**
+**Prompt:**
 Mid-afternoon garden scene with character in center-left position, illuminated by bright natural daylight casting soft shadows. Character features: round yellow face with large round eyes showing skeptical expression, small red nose catching light, wide mouth with prominent pink tongue, distinctive black hair styled in "M" shape on forehead, face showing signs of exertion. Dynamic pose with body bent slightly forward, right hand gripping garden rake actively working soil, left hand raised holding white-yellow tinted towel wiping forehead sweat. Wearing red t-shirt with clear yellow Chinese characters reading "don't eat", fabric catching natural light, paired with blue shorts. Environment shows rich brown tilled soil in foreground with detailed furrows and ambient occlusion, small green plant with delicate white flower nearby, lifeless worm with "X" eyes and purple slug-like creature with matching "X" eyes adding environmental detail. Scene composition creates depth through layered elements: detailed soil texture in foreground, character at middle ground, large bare tree with snow-dusted branches and textured trunk anchoring right side of background, rolling green hill with gradient showing atmospheric perspective, white partly cloudy sky above, and blue clouded hills fading atmospherically in far distance. Warm color palette harmonizes yellows, reds, blues, browns, and varied greens throughout scene. Clear air quality with slight distance haze creates peaceful gardening atmosphere under mild weather conditions, natural light interacting distinctly with each surface from character's skin to soil texture.
 """
 
@@ -135,8 +136,8 @@ generation_config = {
 
 # Initialize the Gemini model with the specified configuration and system instructions
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    # model_name="gemini-2.0-flash-exp",
+    # model_name="gemini-1.5-flash",
+    model_name="gemini-2.0-flash-exp",
     generation_config=generation_config,
     system_instruction=system_instruction,
 )

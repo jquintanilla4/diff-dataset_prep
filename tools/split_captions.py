@@ -6,106 +6,171 @@ def read_captions(file_path):
         text = file.read()
     return text
 
-def split_captions(text, folder_path):
+def split_captions(text, folder_path, file_path):
+    # Initialize counters
+    processed_count = 0
+    error_count = 0
+
     # Create description and prompt directories if they don't exist
     desc_dir = os.path.join(folder_path, 'descriptions')
     prompt_dir = os.path.join(folder_path, 'prompts')
     os.makedirs(desc_dir, exist_ok=True)
     os.makedirs(prompt_dir, exist_ok=True)
 
-    # Extract filenames from the header
-    filename_pattern = r'\d+\.\s+(\d+\.png)'
-    filenames = re.findall(filename_pattern, text)
-    
-    # Only print first 5 filenames
-    print(f"First 5 filenames: {filenames[:5]}")
-    
-    # Split the text into image sections
-    sections = text.split('**Image')[1:]  # Try first format
-    if len(sections) <= 1:  # If first format didn't work
-        sections = text.split('\n\n**')[1:]  # Try second format
-    
+    # Create or open a log file for zero-processed files
+    log_file = os.path.join(folder_path, 'zero_processed_files.txt')
+
+    # Improved section splitting using regex
+    sections = re.split(r'(?:\n\s*|^)(\*\*\d+\.\*\*|Prompt:\n)', text)
+    sections = [s.strip() for s in sections if s.strip()]
+
+    # Combine patterns and section number with the section content
+    new_sections = []
+    for i in range(0, len(sections), 2):
+        if i + 1 < len(sections):
+            new_sections.append(sections[i] + "\n" + sections[i+1])
+
+    sections = new_sections
+            
     print(f"Number of sections found: {len(sections)}")
-    
+    if sections:
+        print("First section preview:")
+        print(sections[0][:200])
+
+    # Extract filenames from the header section
+    filename_pattern = r'^\d+\.\s+(\d+\.png)'
+    filenames = []
+    if 'Files processed in this batch' in text:
+        file_list = text.split('=== Analysis ===')[0]
+        filenames = re.findall(filename_pattern, file_list, re.MULTILINE)
+
+    print(f"Number of filenames found: {len(filenames)}")
+    print("Filenames found:", filenames)
+
+    # Updated patterns for this specific format
+    description_patterns = [
+        r'\*\*\d+\.\*\*\n\*\*Description:\*\*\n(.*?)(?=\n\n\*\*Prompt:|\n$)',  # Pattern for numbered sections
+        r'\*\*Description:\*\*\n(.*?)(?=\n\n\*\*Prompt:|\n$)',  # Pattern when numbers are missing but structure is maintained
+        r'Description:\*\*\n(.*?)(?=\n\nPrompt:|\n$)', # Pattern for unformatted start
+        r'\*\*Description:\*\*(.*?)(?=\n\n\*\*|$)', # Pattern for edge cases
+    ]
+
+    prompt_patterns = [
+        r'\*\*\d+\.\*\*\n\*\*Prompt:\*\*\n(.*?)(?=\n\n\*\*\d+\.\*\*|\n$)',  # Pattern for numbered sections
+        r'\*\*Prompt:\*\*\n(.*?)(?=\n\n\*\*Description:|\n$)',  # Pattern when numbers are missing but structure is maintained
+        r'Prompt:\*\*\n(.*?)(?=\n\n\*\*|\n$)',  # Pattern for unformatted start
+        r'\*\*Prompt:\*\*(.*?)(?=\n\n\*\*|$)',  # Pattern for edge cases
+    ]
+
+    # Ensure filenames list has the same length as sections, filling with placeholders if necessary
+    if len(filenames) < len(sections):
+        filenames.extend(['unknown.png'] * (len(sections) - len(filenames)))
+
     for i, (filename, section) in enumerate(zip(filenames, sections)):
-        base_name = filename.replace('.png', '')
-        
-        # Try different patterns for description
-        description_patterns = [
-            r'Description:\*\*\n\n(.*?)\n\n\*\*Prompt:',          # Format 1
-            r'Description:\*\*\n.*?\n\s*(.*?)\n\n',               # Format 2
-            r'\*\*Description:\*\*\n(.*?)\n\n\*\*Prompt:',        # Format 3
-            r'Description:\*\*\n(.*?)\n\n(?:\d+\.)?\s*\*\*Prompt:', # Format 4
-            r'\d\.\s*Description:\s*(.*?)\n\n\d\.',               # Format 5
-            r'\*\*\d+\.\s*Description\*\*\n(.*?)\n\n\*\*\d+\.',   # Format 6
-            r'\*\*\d+\.\s*Description:\*\*\n\n(.*?)\n\n\*\*Prompt:', # Format 7
-        ]
-        
-        # Try different patterns for prompt
-        prompt_patterns = [
-            r'Prompt:\*\*\n\n(.*?)(?=\n\n|$)',                   # Format 1
-            r'Prompt:\*\*\n.*?\n\s*(.*?)(?=\n\n|$)',             # Format 2
-            r'\*\*Prompt:\*\*\n(.*?)(?=\n\n|$)',                 # Format 3
-            r'Individual Prompt:\s*(.*?)(?=\n\n|$)',              # Format 4
-            r'\d\.\s*\*\*Prompt:\*\*\n(.*?)(?=\n\n\d\.|$)',      # Format 5
-            r'\*\*\d+\.\s*Prompt\*\*\n(.*?)(?=\n\n\*\*|$)',      # Format 6
-            r'\*\*Prompt:\*\*\n\n(.*?)(?=\n\n\*\*|$)',          # Format 7
-        ]
-        
-        # Try each description pattern until one works
-        description = None
-        for pattern in description_patterns:
-            description = re.search(pattern, section, re.DOTALL)
-            if description:
-                break
-                
-        # Try each prompt pattern until one works
-        prompt = None
-        for pattern in prompt_patterns:
-            prompt = re.search(pattern, section, re.DOTALL)
-            if prompt:
-                break
-        
-        # Debug prints only for first 5 files
-        if i < 5:
-            print(f"\nProcessing file {i+1}/5: {filename}")
-            print(f"Description match: {bool(description)}")
-            print(f"Prompt match: {bool(prompt)}")
-            
-            if not description or not prompt:
-                print("Section content for debugging:")
-                print(section[:200])
-            
-        if description and prompt:
-            # Write description file
-            desc_path = os.path.join(desc_dir, f'd_{base_name}.txt')
-            with open(desc_path, 'w') as f:
-                f.write(description.group(1).strip())
-            
-            # Write prompt file
-            prompt_path = os.path.join(prompt_dir, f'p_{base_name}.txt')
-            with open(prompt_path, 'w') as f:
-                f.write(prompt.group(1).strip())
+        try:
+            base_name = filename.replace('.png', '')
+            print(f"\nProcessing file {base_name}")
+            print(f"Section preview: {section[:200]}...")
+
+            # Try to find description and prompt
+            description = None
+            prompt = None
+
+            # First try to find description
+            for pattern in description_patterns:
+                match = re.search(pattern, section, re.DOTALL)
+                if match:
+                    description = match.group(1).strip()
+                    print(f"Found description: {description[:50]}...")
+                    break
+
+            # Then try to find prompt
+            for pattern in prompt_patterns:
+                match = re.search(pattern, section, re.DOTALL)
+                if match:
+                    prompt = match.group(1).strip()
+                    print(f"Found prompt: {prompt[:50]}...")
+                    break
+
+            if not description:
+                print("DEBUG: Could not find description. Section content:")
+                print(section)
+            if not prompt:
+                print("DEBUG: Could not find prompt. Section content:")
+                print(section)
+
+            # Save files if found
+            try:
+                if description:
+                    desc_file = os.path.join(desc_dir, f"{base_name}.txt")
+                    with open(desc_file, 'w', encoding='utf-8') as f:
+                        f.write(description)
+                    print(f"Saved description to {desc_file}")
+
+                if prompt:
+                    prompt_file = os.path.join(prompt_dir, f"{base_name}.txt")
+                    with open(prompt_file, 'w', encoding='utf-8') as f:
+                        f.write(prompt)
+                    print(f"Saved prompt to {prompt_file}")
+
+                if description and prompt:
+                    processed_count += 1
+                else:
+                    error_count += 1
+                    print(f"WARNING: Missing {'description' if not description else 'prompt'} for {filename}")
+
+            except IOError as e:
+                print(f"Error writing files for {filename}: {str(e)}")
+                error_count += 1
+
+        except Exception as e:
+            print(f"Error processing section {i+1} ({filename}): {str(e)}")
+            error_count += 1
+
+    print(f"\nProcessed: {processed_count} (with both description and prompt)")
+    print(f"Errors: {error_count} (missing either description or prompt)")
+
+    # If nothing was processed, log the file name
+    if processed_count == 0:
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"Zero items processed in file: {os.path.basename(folder_path)}\n")
 
 def main():
-    folder_path = input("Enter the path to the folder containing the captions: ").strip()
-    
-    # if the input from the user has backquotes, single quotes, or double quotes, remove them
-    folder_path = folder_path.replace('"', '').replace("'", '').replace('`', '')
+    try:
+        folder_path = input("Enter the path to the folder containing the captions: ").strip()
 
-    if not os.path.isdir(folder_path):
-        print(f"Error: '{folder_path}' is not a valid directory.")
-        return
+        # if the input from the user has backquotes, single quotes, or double quotes, remove them
+        folder_path = folder_path.replace('"', '').replace("'", '').replace('`', '')
 
-    # Print only first 5 caption files found
-    caption_files = [f for f in os.listdir(folder_path) 
-                    if f.endswith('.txt') and not (f.startswith('d_') or f.startswith('p_'))]
-    print(f"First 5 caption files found: {caption_files[:5]}")
+        if not os.path.isdir(folder_path):
+            print(f"Error: '{folder_path}' is not a valid directory.")
+            return
 
-    # Process all caption files in the user specified directory
-    for file in caption_files:
-        text = read_captions(os.path.join(folder_path, file))
-        split_captions(text, folder_path)
+        # Clear the log file at the start
+        log_file = os.path.join(folder_path, 'zero_processed_files.txt')
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write("Files with zero successful processes:\n\n")
+
+        caption_files = [f for f in os.listdir(folder_path)
+                         if f.endswith('.txt') and not (f.startswith('d_') or f.startswith('p_'))]
+
+        if not caption_files:
+            print("No caption files found in the specified directory.")
+            return
+
+        for file in caption_files:
+            try:
+                file_path = os.path.join(folder_path, file)
+                text = read_captions(file_path)
+                split_captions(text, folder_path, file_path)
+            except Exception as e:
+                with open(log_file, 'a', encoding='utf-8') as f:
+                    f.write(f"Error processing file {file}: {str(e)}\n")
+
+        print(f"\nProcessing complete. Check {log_file} for files with zero successful processes.")
+
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
 
 if __name__ == '__main__':
     main()
