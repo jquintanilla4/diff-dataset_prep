@@ -67,13 +67,17 @@ sample_file_1_jpeg = pil_to_base64_jpeg(resized_sample_file_1, quality=85)
 
 
 # Define the prompt to be used for generating descriptions and prompts
-prompt = """For each of the provided images, analyze it in complete isolation from the others. Number your responses to match each image (1 through N).
+prompt = """For each image, follow this two-step process:
 
-For EACH image, provide:
+1. First, internally analyze the image by creating a detailed description including:
+- All characters and their expressions
+- Actions and positioning
+- Environmental elements
+- Colors and lighting
+- Objects and their relationships
+- Overall scene composition
 
-1. A "Description" section: Write a complete, standalone description of what's in this specific image, including any characters and their expressions. Describe everything as if this is the first and only time you're seeing these elements.
-
-2. A "Prompt" section: Create a comprehensive prompt for the generative image model Flux that includes:
+2. Then, based on your internal description, provide ONLY a comprehensive prompt for the generative image model Flux that includes:
 - Character features and expressions (facial features, emotions, distinctive traits)
 - Positioning and actions (pose, gestures, movement)
 - Environmental details (surroundings, objects, terrain)
@@ -87,9 +91,7 @@ For EACH image, provide:
 - Weather implications (environmental conditions)
 - Atmospheric perspective (depth, distance effects)
 
-Critical: Each image's description and prompt must be completely self-contained. Do not use phrases like "the same character", "again", "as seen before", or any other references to other images. Describe every element as if you're seeing it for the first time.
-
-Analyze all images in order, numbering them 1 through N. The prompt for each image should be detailed but stay under 512 tokens. These prompts will be used for training a LoRA."""
+Important: Do not include your internal description in the output - only provide the final prompt."""
 
 # Construct the one-shot example as a string (to be included in system instruction)
 one_shot_example_str = f"""
@@ -99,17 +101,6 @@ one_shot_example_str = f"""
 {sample_file_1_jpeg}
 
 **Response:**
-**1.**
-**Description:**
-This is a cartoon illustration, depicting a character engaged in gardening on a sloped landscape under a partly cloudy sky.
-
-The character, positioned in the center-left of the frame, has a round, yellow face with exaggerated features, including large, round eyes with a skeptical expression, a small red nose, and a wide mouth with a prominent, pink tongue. It has a mop of black hair styled into an "M" shape on its forehead. It's dressed in a red t-shirt with yellow Chinese characters that translate to "Don't eat" and blue shorts. It is holding a garden rake in its right hand and a white towel with a yellow tint in its left hand, seemingly wiping sweat off his forehead.
-
-The character appears to be working on the soil, which is a rich brown color. The rake is in the soil, suggesting recent tilling. Nearby, there are a few notable elements: a worm lying on the ground, appearing lifeless with "X" marks for eyes; a purple, slug-like creature with similar "X" eyes; and a small green plant with a white flower to the left.
-
-The background features a hill with a gradient of green hues, suggesting grass, and a large, bare tree with snow on some of its branches to the right. The tree's branches are spread out, and it has a textured trunk. The sky is white, with a blue, clouded hill in the distance. The overall color palette is warm, with the use of yellows, browns, and greens dominating the scene.
-
-**Prompt:**
 Mid-afternoon garden scene with character in center-left position, illuminated by bright natural daylight casting soft shadows. Character features: round yellow face with large round eyes showing skeptical expression, small red nose catching light, wide mouth with prominent pink tongue, distinctive black hair styled in "M" shape on forehead, face showing signs of exertion. Dynamic pose with body bent slightly forward, right hand gripping garden rake actively working soil, left hand raised holding white-yellow tinted towel wiping forehead sweat. Wearing red t-shirt with clear yellow Chinese characters reading "don't eat", fabric catching natural light, paired with blue shorts. Environment shows rich brown tilled soil in foreground with detailed furrows and ambient occlusion, small green plant with delicate white flower nearby, lifeless worm with "X" eyes and purple slug-like creature with matching "X" eyes adding environmental detail. Scene composition creates depth through layered elements: detailed soil texture in foreground, character at middle ground, large bare tree with snow-dusted branches and textured trunk anchoring right side of background, rolling green hill with gradient showing atmospheric perspective, white partly cloudy sky above, and blue clouded hills fading atmospherically in far distance. Warm color palette harmonizes yellows, reds, blues, browns, and varied greens throughout scene. Clear air quality with slight distance haze creates peaceful gardening atmosphere under mild weather conditions, natural light interacting distinctly with each surface from character's skin to soil texture.
 """
 
@@ -117,10 +108,10 @@ Mid-afternoon garden scene with character in center-left position, illuminated b
 system_instruction = (
     "You're an illustrator, photographer, painter, and cinematographer. "
     "An expert in describing images and all of their details. "
-    "Your task is to analyze each image completely independently, "
-    "treating it as if it's the only image you've ever seen. "
-    "Never reference, compare, or relate to other images in your descriptions or prompts. "
-    "Each analysis must be completely self-contained. "
+    "Your task is to first internally analyze each image in detail, "
+    "then provide only a comprehensive prompt based on that analysis. "
+    "Never reference other images in your prompts. "
+    "Each prompt must be completely self-contained. "
     "Here is an example of how to perform the task:\n\n"
 ) + one_shot_example_str
 
@@ -146,80 +137,63 @@ model = genai.GenerativeModel(
 def process_single_image(image_path, model, prompt):
     """Process a single image and generate analysis."""
     try:
-        # Prepare the image
         image = PIL.Image.open(image_path)
-        resized_image = resize_image(image, max_dimension=512)
-        image_jpeg = pil_to_base64_jpeg(resized_image, quality=85)
+        resized_image = resize_image(image, max_dimension=512)  # Resize the image to a max dimension of 512
+        image_jpeg = pil_to_base64_jpeg(resized_image, quality=85)  # Convert the resized image to a base64 JPEG
 
-        # Create message with single image
         messages = [
             {
-                'mime_type': 'image/jpeg',
-                'data': image_jpeg
+                'mime_type': 'image/jpeg',  # Specify the MIME type as JPEG
+                'data': image_jpeg  # Include the base64 encoded image data
             },
-            f"Analyze the following image.\n{prompt}"
+            f"Analyze the image.\n{prompt}"  # Add the prompt for analysis
         ]
 
-        # Generate content
-        response = generate_with_retry(model, messages)
+        response = generate_with_retry(model, messages)  # Generate content using the model with retry logic
 
-        # Create output paths
-        filename = os.path.basename(image_path)
-        base_name = os.path.splitext(filename)[0]
-        results_dir = os.path.join(os.path.dirname(image_path), "results")
-        os.makedirs(results_dir, exist_ok=True)
+        filename = os.path.basename(image_path)  # Extract the filename from the image path
+        base_name = os.path.splitext(filename)[0]  # Get the base name without extension
+        
+        output_filename = f"p_{base_name}.txt"  # Create the output filename with "p_" prefix
+        output_path = os.path.join(os.path.dirname(image_path), output_filename)  # Determine the full output path
 
-        analysis_path = os.path.join(results_dir, f"{base_name}_analysis.txt")
-        raw_response_path = os.path.join(results_dir, f"{base_name}_raw_response.json")
-
-        # Save the raw response
-        with open(raw_response_path, 'w', encoding='utf-8') as f:
-            json.dump(response.to_dict(), f, indent=4)
-
-        # Save the analysis
-        with open(analysis_path, 'w', encoding='utf-8') as f:
-            f.write(f"File analyzed: {filename}\n\n")
-            f.write("=== Analysis ===\n\n")
+        with open(output_path, 'w', encoding='utf-8') as f:  # Open the output file for writing
             f.write(response.text.strip())
 
-        return True
+        return True  # Return True to indicate successful processing
 
     except Exception as e:
         print(f"Error processing {image_path}: {e}")
-        return False
+        return False  # Return False to indicate failure
+
 
 def process_folder(folder_path, model, prompt, max_images=3000):
-    """Process all images in a folder one at a time."""
-    image_files = [
-        filename for filename in os.listdir(folder_path)
-        if filename.lower().endswith(('.jpg', '.png', '.jpeg', '.gif', '.bmp', '.tiff'))
+    """
+    Process all images in a folder one at a time.
+    """
+    image_files = [  # List comprehension to filter image files in the folder
+        filename for filename in os.listdir(folder_path)  # Iterate over files in the specified folder
+        if filename.lower().endswith(('.jpg', '.png', '.jpeg', '.gif', '.bmp', '.tiff'))  # Check for valid image extensions
     ]
-    image_files = image_files[:max_images]
+    image_files = image_files[:max_images]  # Limit the number of images to process
 
-    successful = 0
-    failed = 0
-
-    with tqdm(total=len(image_files), desc="Processing images") as pbar:
-        for filename in image_files:
-            image_path = os.path.join(folder_path, filename)
+    with tqdm(total=len(image_files), desc="Processing images") as pbar:  # Progress bar for tracking processing
+        for filename in image_files:  # Iterate over each image file
+            image_path = os.path.join(folder_path, filename)  # Construct full path for the image
             
-            # Skip if analysis already exists
-            results_dir = os.path.join(folder_path, "results")
-            analysis_path = os.path.join(results_dir, f"{os.path.splitext(filename)[0]}_analysis.txt")
+            # Check for existing processed file with p_ prefix
+            base_name = os.path.splitext(filename)[0]  # Extract base name without extension
+            processed_path = os.path.join(folder_path, f"p_{base_name}.txt")  # Path for processed output
             
-            if os.path.exists(analysis_path) and os.path.getsize(analysis_path) > 0:
-                print(f"Skipping {filename}: Analysis file already exists")
-                pbar.update(1)
-                continue
+            if os.path.exists(processed_path) and os.path.getsize(processed_path) > 0:  # Check if processed file exists and is not empty
+                print(f"Skipping {filename}: Processed file already exists")  # Log skipping message
+                pbar.update(1)  # Update progress bar
+                continue  # Skip to the next file
 
-            if process_single_image(image_path, model, prompt):
-                successful += 1
-            else:
-                failed += 1
+            process_single_image(image_path, model, prompt)  # Process the image and check success
+            print(f"Processed {filename}")
             
-            pbar.update(1)
-
-    print(f"\nProcessing complete. Successful: {successful}, Failed: {failed}")
+            pbar.update(1)  # Update progress bar
 
 
 def generate_with_retry(model, messages, max_retries=5):
@@ -235,34 +209,34 @@ def generate_with_retry(model, messages, max_retries=5):
         The raw response object, or raises an exception after retries.
     """
     retry_count = 0
-    base_delay = 10  # Initial delay in seconds
+    base_delay = 10
     delay_multiplier = 2.5  # Multiplier for exponential backoff
     request_options = {"timeout": 120.0}  # Timeout for each API request
 
-    while retry_count < max_retries:
+    while retry_count < max_retries:  # Loop until max retries reached
         try:
-            start_time = time.time()
-            # Generate content using the provided model and messages
-            response = model.generate_content(
+            start_time = time.time()  # Record start time for API call
+            
+            response = model.generate_content( # Generate content using the provided model and messages
                 messages,
-                request_options=request_options
+                request_options=request_options  # Options for the request
             )
-            print(f" API call took {time.time() - start_time:.2f} seconds")
+            print(f" API call took {time.time() - start_time:.2f} seconds")  # Log API call duration
 
             # Return the raw response object
-            return response
+            return response  # Successful response returned
 
-        except (ResourceExhausted, DeadlineExceeded) as e:
-            print(f"Attempt {retry_count + 1} failed. Error: {e}")
-            retry_count += 1
+        except (ResourceExhausted, DeadlineExceeded) as e:  # Handle specific exceptions
+            print(f"Attempt {retry_count + 1} failed. Error: {e}")  # Log failure and error
+            retry_count += 1  # Increment retry counter
 
-            if retry_count == max_retries:
-                raise
+            if retry_count == max_retries:  # Check if max retries reached
+                raise  # Raise exception if retries exhausted
 
             # Calculate delay with exponential backoff and random jitter
             delay = base_delay * (delay_multiplier ** retry_count) + \
-                random.uniform(0, base_delay * retry_count)
-            print(f"Retrying in {delay:.2f} seconds...")
+                random.uniform(0, base_delay * retry_count)  # Calculate delay
+            print(f"Retrying in {delay:.2f} seconds...")  # Log retry delay
             time.sleep(delay)  # Wait for the calculated delay before retrying
 
 
