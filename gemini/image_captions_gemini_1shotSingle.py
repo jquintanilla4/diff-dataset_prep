@@ -41,9 +41,8 @@ def resize_image(image, max_dimension=512):
     resized_image = image.resize((new_width, new_height), Image.LANCZOS)
     return resized_image
 
+
 # Function to convert PIL image to base64 encoded JPEG
-
-
 def pil_to_base64_jpeg(image, quality=85):
     """Converts a PIL image to a base64 encoded JPEG string."""
     # Convert RGBA to RGB if necessary
