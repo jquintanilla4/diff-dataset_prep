@@ -137,30 +137,30 @@ model = genai.GenerativeModel(
 def process_single_image(image_path, model, prompt):
     """Process a single image and generate analysis."""
     try:
-        image = PIL.Image.open(image_path)
-        resized_image = resize_image(image, max_dimension=512)  # Resize the image to a max dimension of 512
-        image_jpeg = pil_to_base64_jpeg(resized_image, quality=85)  # Convert the resized image to a base64 JPEG
+        with PIL.Image.open(image_path) as image:  # File is automatically closed after the with block
+            resized_image = resize_image(image, max_dimension=512)  # Resize the image to a max dimension of 512
+            image_jpeg = pil_to_base64_jpeg(resized_image, quality=85)  # Convert the resized image to a base64 JPEG
 
-        messages = [
-            {
-                'mime_type': 'image/jpeg',  # Specify the MIME type as JPEG
-                'data': image_jpeg  # Include the base64 encoded image data
-            },
-            f"Analyze the image.\n{prompt}"  # Add the prompt for analysis
-        ]
+            messages = [
+                {
+                    'mime_type': 'image/jpeg',  # Specify the MIME type as JPEG
+                    'data': image_jpeg  # Include the base64 encoded image data
+                },
+                f"Analyze the image.\n{prompt}"  # Add the prompt for analysis
+            ]
 
-        response = generate_with_retry(model, messages)  # Generate content using the model with retry logic
+            response = generate_with_retry(model, messages)  # Generate content using the model with retry logic
 
-        filename = os.path.basename(image_path)  # Extract the filename from the image path
-        base_name = os.path.splitext(filename)[0]  # Get the base name without extension
-        
-        output_filename = f"p_{base_name}.txt"  # Create the output filename with "p_" prefix
-        output_path = os.path.join(os.path.dirname(image_path), output_filename)  # Determine the full output path
+            filename = os.path.basename(image_path)  # Extract the filename from the image path
+            base_name = os.path.splitext(filename)[0]  # Get the base name without extension
+            
+            output_filename = f"p_{base_name}.txt"  # Create the output filename with "p_" prefix
+            output_path = os.path.join(os.path.dirname(image_path), output_filename)  # Determine the full output path
 
-        with open(output_path, 'w', encoding='utf-8') as f:  # Open the output file for writing
-            f.write(response.text.strip())
+            with open(output_path, 'w', encoding='utf-8') as f:  # Open the output file for writing
+                f.write(response.text.strip())
 
-        return True  # Return True to indicate successful processing
+            return True  # Return True to indicate successful processing
 
     except Exception as e:
         print(f"Error processing {image_path}: {e}")
