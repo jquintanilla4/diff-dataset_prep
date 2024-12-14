@@ -20,16 +20,28 @@ def split_captions(text, folder_path, file_path):
     # Create or open a log file for zero-processed files
     log_file = os.path.join(folder_path, 'zero_processed_files.txt')
 
-    # Improved section splitting using regex
-    sections = re.split(r'(?:\n\s*|^)(\*\*\d+\.\*\*|Prompt:\n)', text)
+    # Updated section splitting to handle "Files processed..." sections
+    sections = re.split(r'(?:\n\s*|^)(\*\*\d+\.\*\*|Prompt:\n|Files processed in this batch)', text)
     sections = [s.strip() for s in sections if s.strip()]
 
-    # Combine patterns and section number with the section content
+    # Combine section headers with their content
     new_sections = []
     for i in range(0, len(sections), 2):
         if i + 1 < len(sections):
-            new_sections.append(sections[i] + "\n" + sections[i+1])
-
+            if sections[i] == 'Files processed in this batch':
+                # Find the end of the "Files processed" section
+                end_index = i + 2
+                while end_index < len(sections) and not re.match(r'(\*\*\d+\.\*\*|Prompt:)', sections[end_index]):
+                    end_index += 1
+                
+                # Combine the header and content for the "Files processed" section
+                new_sections.append(' '.join(sections[i:end_index]))
+                
+                # Skip the already processed parts
+                i = end_index - 2
+            else:
+                new_sections.append(sections[i] + "\n" + sections[i+1])
+    
     sections = new_sections
             
     print(f"Number of sections found: {len(sections)}")
@@ -53,6 +65,7 @@ def split_captions(text, folder_path, file_path):
         r'\*\*Description:\*\*\n(.*?)(?=\n\n\*\*Prompt:|\n$)',  # Pattern when numbers are missing but structure is maintained
         r'Description:\*\*\n(.*?)(?=\n\nPrompt:|\n$)', # Pattern for unformatted start
         r'\*\*Description:\*\*(.*?)(?=\n\n\*\*|$)', # Pattern for edge cases
+        r'Files processed in this batch.*?(\d+\.png).*?=== Analysis ===\s*(?:.*\n)*?\*\*Description:\*\*\s*(.*?)(?=\*\*Prompt:|\n$)',  # For "Files processed..." sections
     ]
 
     prompt_patterns = [
@@ -60,13 +73,14 @@ def split_captions(text, folder_path, file_path):
         r'\*\*Prompt:\*\*\n(.*?)(?=\n\n\*\*Description:|\n$)',  # Pattern when numbers are missing but structure is maintained
         r'Prompt:\*\*\n(.*?)(?=\n\n\*\*|\n$)',  # Pattern for unformatted start
         r'\*\*Prompt:\*\*(.*?)(?=\n\n\*\*|$)',  # Pattern for edge cases
+        r'Files processed in this batch.*?(\d+\.png).*?=== Analysis ===\s*(?:.*\n)*?\*\*Prompt:\*\*\s*(.*?)(?=\*\*Description:|\n$)',  # For "Files processed..." sections
     ]
+    
+    # Ensure that we process the correct number of sections corresponding to filenames
+    for i in range(min(len(filenames), len(sections))):
+        filename = filenames[i]
+        section = sections[i]
 
-    # Ensure filenames list has the same length as sections, filling with placeholders if necessary
-    if len(filenames) < len(sections):
-        filenames.extend(['unknown.png'] * (len(sections) - len(filenames)))
-
-    for i, (filename, section) in enumerate(zip(filenames, sections)):
         try:
             base_name = filename.replace('.png', '')
             print(f"\nProcessing file {base_name}")
@@ -78,19 +92,35 @@ def split_captions(text, folder_path, file_path):
 
             # First try to find description
             for pattern in description_patterns:
-                match = re.search(pattern, section, re.DOTALL)
-                if match:
-                    description = match.group(1).strip()
-                    print(f"Found description: {description[:50]}...")
-                    break
+                # Special handling for "Files processed..." sections
+                if "Files processed in this batch" in section:
+                    match = re.search(pattern, section, re.DOTALL)
+                    if match and match.group(1) == filename:
+                        description = match.group(2).strip()
+                        print(f"Found description: {description[:50]}...")
+                        break
+                else:
+                    match = re.search(pattern, section, re.DOTALL)
+                    if match:
+                        description = match.group(1).strip()
+                        print(f"Found description: {description[:50]}...")
+                        break
 
             # Then try to find prompt
             for pattern in prompt_patterns:
-                match = re.search(pattern, section, re.DOTALL)
-                if match:
-                    prompt = match.group(1).strip()
-                    print(f"Found prompt: {prompt[:50]}...")
-                    break
+                # Special handling for "Files processed..." sections
+                if "Files processed in this batch" in section:
+                    match = re.search(pattern, section, re.DOTALL)
+                    if match and match.group(1) == filename:
+                        prompt = match.group(2).strip()
+                        print(f"Found prompt: {prompt[:50]}...")
+                        break
+                else:
+                    match = re.search(pattern, section, re.DOTALL)
+                    if match:
+                        prompt = match.group(1).strip()
+                        print(f"Found prompt: {prompt[:50]}...")
+                        break
 
             if not description:
                 print("DEBUG: Could not find description. Section content:")
