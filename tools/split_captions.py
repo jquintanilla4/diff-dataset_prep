@@ -212,7 +212,7 @@ def main():
         # Clear and initialize the log file
         log_file = os.path.join(folder_path, 'zero_processed_files.txt')
         with open(log_file, 'w', encoding='utf-8') as f:
-            f.write("Files with zero successful processes:\n\n")
+            f.write("Log file for processed files:\n\n")
 
         caption_files = [f for f in os.listdir(folder_path)
                          if f.endswith('.txt') and not (f.startswith('d_') or f.startswith('p_'))]
@@ -229,7 +229,7 @@ def main():
             except Exception as e:
                 log_message(log_file, f"Error processing file {file}: {str(e)}")
 
-        print(f"\nProcessing complete. Check {log_file} for files with zero successful processes and other logs.")
+        print(f"\nProcessing complete. Check {log_file} for more information.")
 
     except Exception as e:
         print(f"An unexpected error occurred: {str(e)}")
