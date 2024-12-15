@@ -5,6 +5,7 @@ import random
 from openai import OpenAI
 from dotenv import load_dotenv
 from tqdm import tqdm
+from tools.caption_starters import clean_caption
 
 # Load environment variables from .env file
 load_dotenv()
@@ -30,7 +31,7 @@ def process_caption(caption, max_retries=5):
                     {"role": "system", "content": "You are an expert prompt editor and crafter, and a helpful assistant. You are an expert at cleaning up prompts from image captions."},
                     {
                         "role": "user",
-                        "content": f"Please change any reference to character to BBCDFL. Remove any descriptions of art mediums, such as illustration, cartoon; art style, such as watercolor; digital tools, or creation processes from the following caption. Please also remove any quotation marks, parethesis, and other non-text characters. Rephrase any sentences that contain colons, such as 'Expression: Surprise or astonishment' to something like 'The expression is surprise or astonishment'. If the setnence has none in it such as 'Atmospheric effects: None', remove that sentence. Any references to a black M, black M shape, M shaped, styled M, or black hair styled as M should be rephrased to a 'black M eyebrow'. Please only return a cleaned caption: {caption}"
+                        "content": f"Please remove any descriptions of art mediums, such as illustration, cartoon; art style, such as watercolor; digital tools such as paper; or creation processes from the following caption. Please remove any caption starters such as 'An illustration featuring ', 'The image is ', 'The scene is ', 'An illustration of ', and any like them. Please also remove any quotation marks, parethesis, and other non-text characters. Rephrase any sentences that contain colons, such as 'Expression: Surprise or astonishment' to something like 'The expression is surprise or astonishment'. If the setnence has none in it such as 'Atmospheric effects: None', remove that sentence. Any references to a black M, black M shape, M shaped, styled M, or black hair styled as M should be rephrased to a 'black M eyebrow'. If any caption has more than one paragaph, please reformat it to only be one paragraph. The caption is meant to used by a T5 text encoder, so we have 512 tokens to use, please be descriptive enough when editing the caption, but not overly verbose or overly consice. Please only return a cleaned caption: {caption}"
                     }
                 ],
                 timeout=120.0  # Add timeout parameter
@@ -76,17 +77,21 @@ def process_files(folder_path, prepend_text):
             # Process the caption
             with open(filename, 'r') as file:
                 original_caption = file.read().strip()
+            
+            # clean the caption
+            cleaned_caption = clean_caption(original_caption)
+
             # process the caption
-            cleaned_caption = process_caption(original_caption)
+            processed_caption = process_caption(cleaned_caption)
 
             # use cleaned_caption if prepend_text is 'n', otherwise use full_caption
-            final_caption = cleaned_caption if prepend_text.lower() == 'n' else f"{prepend_text}, {cleaned_caption}"
+            final_caption = processed_caption if prepend_text.lower() == 'n' else f"{prepend_text}, {processed_caption}"
 
             # Write the caption
             with open(new_filename, 'w', encoding='utf-8') as file:
                 file.write(final_caption)
 
-            print(f"Processed: {filename} -> {new_filename}")
+            print(f"Processed: {base_name} -> {name_without_ext}_c.txt") # basename -> name_without_ext_c.txt
 
         except Exception as e:
             print(f"Error processing {filename}: {e}")

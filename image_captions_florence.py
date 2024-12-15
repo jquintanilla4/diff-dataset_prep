@@ -2,6 +2,7 @@ import os
 from transformers import AutoModelForCausalLM, AutoProcessor
 from PIL import Image
 import torch
+from tools.caption_starters import clean_caption
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -27,12 +28,6 @@ def run_example(task_prompt, text_input, image):
     parsed_answer = processor.post_process_generation(generated_text, task=task_prompt, image_size=(image.width, image.height))
     return parsed_answer
 
-def clean_caption(caption):
-    return caption.replace(
-        "The image is", "").replace(
-        "The art style is ", "").replace(
-        "The overall style of the artwork is ", "").replace(
-        "an illustration featuring ", "").strip()
 
 def process_image(folder_path):
     for filename in os.listdir(folder_path):
