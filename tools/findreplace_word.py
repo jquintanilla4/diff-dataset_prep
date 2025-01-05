@@ -35,7 +35,7 @@ def process_directory(directory_path, search_word, replacement_word):
 
 def main():
     # Get directory path from user input
-    directory = input("Enter the path to the folder containing the text files: ").strip()
+    directory = input("Enter the path to the directory containing the text files: ").strip()
     search_word = input("Enter the word to search for: ").strip()
     replacement_word = input("Enter the replacement word: ").strip()
 
