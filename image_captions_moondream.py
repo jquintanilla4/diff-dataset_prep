@@ -9,8 +9,6 @@ model = AutoModelForCausalLM.from_pretrained(
 tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
 
 # function to clean up phrases from the caption. Because LLMs/VLMs
-
-
 def clean_caption(caption):
     return caption.replace("The image is", "").replace("The art style is ", "")\
         .replace("The overall style of the artwork is ", "")\
