@@ -1,8 +1,10 @@
+# CUDA only because of qwen2vl utils.
+
 import os
+import torch
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
 from qwen_vl_utils import process_vision_info
 from PIL import Image
-import torch
 
 def initialize_model():
     model = Qwen2VLForConditionalGeneration.from_pretrained(
