@@ -57,20 +57,36 @@ def main():
         print(f"Error: '{directory}' is not a valid directory.")
         return
 
-    target_size = 1024
-    resize_largest = input("Would you like to resize the largest dimension to 1024px? (y/n): ").strip().lower() == 'y'
+    # Choose resize mode
+    resize_largest = input("Would you like to resize the largest dimension? (y/n): ").strip().lower() == 'y'
 
     resize_height = False
     resize_width = False
 
-    if not resize_largest: # if false
-        resize_height = input("Would you like to resize the height? (y/n): ").strip().lower() == 'y'  # input -> ... -> compare to 'y' -> True/False
-        if not resize_height: # if false
-            resize_width = input("Would you like to resize the width? (y/n): ").strip().lower() == 'y'  # input -> ... -> compare to 'y' -> True/False
+    if not resize_largest:  # if false
+        resize_height = input("Would you like to resize the height? (y/n): ").strip().lower() == 'y'
+        if not resize_height:  # if false
+            resize_width = input("Would you like to resize the width? (y/n): ").strip().lower() == 'y'
 
         if not resize_height and not resize_width:
             print("No resize option selected. Exiting.")
             return
+
+    # Ask for the target size based on chosen option
+    while True:
+        try:
+            if resize_largest:
+                target_size = int(input("Enter the target size (in pixels) for the largest dimension (e.g., 1024): ").strip())
+            elif resize_height:
+                target_size = int(input("Enter the target height (in pixels) (e.g., 1024): ").strip())
+            else:
+                target_size = int(input("Enter the target width (in pixels) (e.g., 1024): ").strip())
+
+            if target_size <= 0:
+                raise ValueError
+            break
+        except ValueError:
+            print("Please enter a valid positive integer.")
 
     process_directory(directory, target_size, resize_largest,
                       resize_height, resize_width)
