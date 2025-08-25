@@ -1,3 +1,10 @@
-lmstudio
 pillow
 transformers
+google-generativeai
+openai
+python-dotenv
+tqdm
+torch
+qwen-vl-utils
+ollama
+lmstudio
